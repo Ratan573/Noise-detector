@@ -1,0 +1,207 @@
+ <!DOCTYPE html>
+        <html lang='en'>
+        <head>            <title>Noise Detector</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body {
+                    background: linear-gradient(135deg, #1a2233 0%, #232a34 100%);
+                    min-height: 100vh;
+                    color: #fff;
+                    font-family: 'Segoe UI', Arial, sans-serif;
+                    margin: 0;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: flex-start;
+                }
+                h1 {
+                    margin-top: 40px;
+                    font-size: 2.5rem;
+                    letter-spacing: 2px;
+                    background: linear-gradient(90deg, #00ffe7, #ff47a1, #00ffe7);
+                    background-size: 200% 200%;
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    animation: gradientText 4s linear infinite;
+                }
+                @keyframes gradientText {
+                    0% { background-position: 0% 50%; }
+                    100% { background-position: 100% 50%; }
+                }
+                .dashboard {
+                    margin: 50px auto 0 auto;
+                    width: 360px;
+                    height: 360px;
+                    background: rgba(30,40,60,0.7);
+                    border-radius: 30px;
+                    box-shadow: 0 8px 32px 0 rgba(31,38,135,0.37);
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    position: relative;
+                    overflow: hidden;
+                }
+                .meter-bg {
+                    position: absolute;
+                    top: 0; left: 0; right: 0; bottom: 0;
+                    z-index: 0;
+                    background: conic-gradient(
+                        #00ffe7 0%,
+                        #00ffe7 33%,
+                        #ffeb3b 33%,
+                        #ffeb3b 66%,
+                        #ff47a1 66%,
+                        #ff47a1 100%
+                    );
+                    opacity: 0.18;
+                    filter: blur(8px);
+                    border-radius: 30px;
+                    animation: rotateBg 8s linear infinite;
+                }
+                @keyframes rotateBg {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+                .meter {
+                    position: relative;
+                    width: 240px;
+                    height: 240px;
+                    margin: 0 auto;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                .meter svg {
+                    width: 240px;
+                    height: 240px;
+                    transform: rotate(-120deg);
+                }
+                .meter-value {
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    font-size: 3.5rem;
+                    font-weight: 700;
+                    letter-spacing: 2px;
+                    color: #fff;
+                    text-shadow: 0 2px 16px #00ffe7, 0 2px 32px #ff47a1;
+                    transition: color 0.3s;
+                }
+                .status {
+                    font-size: 2rem;
+                    font-weight: 600;
+                    margin-top: 18px;
+                    letter-spacing: 1px;
+                    transition: color 0.3s;
+                }
+                .desc {
+                    font-size: 1.2rem;
+                    color: #b0b0b0;
+                    margin-top: 8px;
+                    letter-spacing: 1px;
+                }
+                .glow {
+                    filter: drop-shadow(0 0 16px #00ffe7) drop-shadow(0 0 32px #ff47a1);
+                }
+                @media (max-width: 500px) {
+                    .dashboard { width: 98vw; height: 320px; border-radius: 18px; }
+                    .meter, .meter svg { width: 180px; height: 180px; }
+                    .meter-value { font-size: 2.2rem; }
+                }
+            </style>
+        </head>
+        <body>
+            <h1>Noise Detector</h1>
+            <div style="margin-top:10px; color:#b0b0b0;">Grant microphone access to start.</div>
+            <div class="dashboard">
+                <div class="meter-bg"></div>
+                <div class="meter">
+                    <svg id="meterSvg" viewBox="0 0 240 240">
+                        <path id="meterBgArc" d="" stroke="#222b3a" stroke-width="24" fill="none"/>
+                        <path id="meterArc" d="" stroke="#00ffe7" stroke-width="24" fill="none" class="glow"/>
+                    </svg>
+                    <div class="meter-value" id="db">--</div>
+                </div>
+                <div class="status" id="status">Waiting...</div>
+                <div class="desc">Sound Level</div>
+            </div>
+            <script>
+            // Helper to describe an arc for SVG
+            function describeArc(cx, cy, r, startAngle, endAngle) {
+                var start = polarToCartesian(cx, cy, r, endAngle);
+                var end = polarToCartesian(cx, cy, r, startAngle);
+                var arcSweep = endAngle - startAngle <= 180 ? "0" : "1";
+                return [
+                    "M", start.x, start.y,
+                    "A", r, r, 0, arcSweep, 0, end.x, end.y
+                ].join(" ");
+            }
+            function polarToCartesian(cx, cy, r, angle) {
+                var rad = (angle-90) * Math.PI / 180.0;
+                return {
+                    x: cx + (r * Math.cos(rad)),
+                    y: cy + (r * Math.sin(rad))
+                };
+            }
+            // Meter arc constants
+            var minAngle = 120, maxAngle = 420;
+            var minDb = 0, maxDb = 100;
+            var meterBgArc = document.getElementById('meterBgArc');
+            var meterArc = document.getElementById('meterArc');
+            var dbElem = document.getElementById('db');
+            var statusElem = document.getElementById('status');
+            // Draw background arc
+            meterBgArc.setAttribute('d', describeArc(120,120,90,minAngle,maxAngle));
+            meterBgArc.setAttribute('stroke','#222b3a');
+            // Animate meter
+            var lastDb = 0;
+            function updateMeter(db) {
+                var angle = minAngle + (db-minDb)/(maxDb-minDb)*(maxAngle-minAngle);
+                meterArc.setAttribute('d', describeArc(120,120,90,minAngle,angle));
+                // Color logic
+                if (db < 40) {
+                    meterArc.setAttribute('stroke', '#00ffe7');
+                    statusElem.textContent = "Quiet";
+                    statusElem.style.color = '#00ffe7';
+                    dbElem.style.color = '#00ffe7';
+                } else if (db < 80) {
+                    meterArc.setAttribute('stroke', '#ffeb3b');
+                    statusElem.textContent = "Moderate";
+                    statusElem.style.color = '#ffeb3b';
+                    dbElem.style.color = '#ffeb3b';
+                } else {
+                    meterArc.setAttribute('stroke', '#ff47a1');
+                    statusElem.textContent = "Loud";
+                    statusElem.style.color = '#ff47a1';
+                    dbElem.style.color = '#ff47a1';
+                }
+                dbElem.textContent = db;
+            }
+            // Animate transitions
+            function animateDb(toDb) {
+                var fromDb = lastDb;
+                var steps = 12;
+                var step = 0;
+                function animate() {
+                    step++;
+                    var val = Math.round(fromDb + (toDb-fromDb)*step/steps);
+                    updateMeter(val);
+                    if (step < steps) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        lastDb = toDb;
+                    }
+                }
+                animate();
+            }
+            // Setup EventSource to listen to server-sent events
+            var source = new EventSource('/noise');
+            source.onmessage = function(event) {
+                var db = parseInt(event.data);
+                animateDb(db);
+            };
+            </script>
+        </body>
+        </html>
